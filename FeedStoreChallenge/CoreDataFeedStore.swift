@@ -32,15 +32,11 @@ public final class CoreDataFeedStore: FeedStore {
 		let context = self.context
 		context.perform {
 			do {
-				let request = NSFetchRequest<ManagedCache>(entityName: ManagedCache.entity().name!)
-				request.returnsObjectsAsFaults = false
-				let result = try context.fetch(request).first
-				guard let eResult = result else {
+				if let cache = try ManagedCache.find(in: context) {
+					completion(.found(feed: cache.localFeed, timestamp: cache.timestamp))
+				} else {
 					completion(.empty)
-					return
 				}
-				let feed = eResult.feed.compactMap { ($0 as? ManagedFeedImage)?.local }
-				completion(.found(feed: feed, timestamp: eResult.timestamp))
 			} catch {
 				completion(.failure(error))
 			}
@@ -50,46 +46,20 @@ public final class CoreDataFeedStore: FeedStore {
 	public func insert(_ feed: [LocalFeedImage], timestamp: Date, completion: @escaping InsertionCompletion) {
 		let context = self.context
 		context.perform {
-			let managedCache = ManagedCache(context: context)
+			do {
+				let managedCache = try ManagedCache.newUniqueInstance(in: context)
+				managedCache.timestamp = timestamp
+				managedCache.feed = ManagedFeedImage.image(from: feed, in: context)
 
-			let orderedSet = NSOrderedSet(array: feed.map { item in
-				let managed = ManagedFeedImage(context: context)
-				managed.id = item.id
-				managed.feed_description = item.description
-				managed.location = item.location
-				managed.url = item.url
-
-				return managed
-			})
-
-			managedCache.timestamp = timestamp
-			managedCache.feed = orderedSet
-
-			context.insert(managedCache)
-			completion(nil)
+				try context.save()
+				completion(nil)
+			} catch {
+				completion(error)
+			}
 		}
 	}
 
 	public func deleteCachedFeed(completion: @escaping DeletionCompletion) {
 		fatalError("Must be implemented")
-	}
-}
-
-@objc(ManagedCache)
-private class ManagedCache: NSManagedObject {
-	@NSManaged internal var timestamp: Date
-	@NSManaged internal var feed: NSOrderedSet
-}
-
-@objc(ManagedFeedImage)
-private class ManagedFeedImage: NSManagedObject {
-	@NSManaged internal var id: UUID
-	@NSManaged internal var feed_description: String?
-	@NSManaged internal var location: String?
-	@NSManaged internal var url: URL
-	@NSManaged internal var cache: ManagedCache
-
-	var local: LocalFeedImage {
-		return LocalFeedImage(id: id, description: feed_description, location: location, url: url)
 	}
 }
