@@ -20,7 +20,7 @@ final class ManagedFeedImage: NSManagedObject {
 		return LocalFeedImage(id: id, description: feed_description, location: location, url: url)
 	}
 
-	static func image(from localFeed: [LocalFeedImage], in context: NSManagedObjectContext) -> NSOrderedSet {
+	static func images(from localFeed: [LocalFeedImage], in context: NSManagedObjectContext) -> NSOrderedSet {
 		return NSOrderedSet(array: localFeed.map { item in
 			let managed = ManagedFeedImage(context: context)
 			managed.id = item.id
